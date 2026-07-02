@@ -27,6 +27,20 @@ function eventSummaryLine(event) {
   return `eventId=${event.id} | "${event.summary}" | ${start} - ${end}`;
 }
 
+// Normalizes German spelling variants so "Müller", "Mueller" and "mueller"
+// all compare equal - Google Calendar's own `q` search treats them as
+// different strings, so we fetch events ourselves and match here instead.
+function normalizeGerman(str) {
+  return String(str)
+    .toLowerCase()
+    .replace(/ä/g, 'ae')
+    .replace(/ö/g, 'oe')
+    .replace(/ü/g, 'ue')
+    .replace(/ß/g, 'ss')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
 async function findAppointments({ name, timeMin, timeMax }) {
   if (!name) throw new Error("Parameter 'name' ist erforderlich.");
   const now = new Date().toISOString();
@@ -34,15 +48,21 @@ async function findAppointments({ name, timeMin, timeMax }) {
 
   const res = await calendar.events.list({
     calendarId: CALENDAR_ID,
-    q: name,
     timeMin: timeMin || now,
     timeMax: timeMax || in90Days,
     singleEvents: true,
     orderBy: 'startTime',
-    maxResults: 10,
+    maxResults: 250,
   });
 
-  const items = res.data.items || [];
+  const normalizedName = normalizeGerman(name);
+  const nameParts = normalizedName.split(' ').filter(Boolean);
+
+  const items = (res.data.items || []).filter((event) => {
+    const normalizedSummary = normalizeGerman(event.summary || '');
+    return nameParts.every((part) => normalizedSummary.includes(part));
+  });
+
   if (items.length === 0) {
     return 'Keine passenden Termine gefunden.';
   }
