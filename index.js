@@ -78,14 +78,17 @@ const handlers = {
 
 app.post('/vapi/tools', async (req, res) => {
   const toolCallList = req.body?.message?.toolCallList || [];
+  console.log('Incoming toolCallList:', JSON.stringify(toolCallList));
   const results = [];
 
   for (const toolCall of toolCallList) {
-    const handler = handlers[toolCall.name];
+    const name = toolCall.name || toolCall.function?.name;
+    const rawArgs = toolCall.arguments ?? toolCall.function?.arguments;
+    const handler = handlers[name];
     let result;
     try {
-      if (!handler) throw new Error(`Unbekanntes Tool: ${toolCall.name}`);
-      const args = typeof toolCall.arguments === 'string' ? JSON.parse(toolCall.arguments) : toolCall.arguments;
+      if (!handler) throw new Error(`Unbekanntes Tool: ${name}`);
+      const args = typeof rawArgs === 'string' ? JSON.parse(rawArgs) : rawArgs;
       result = await handler(args || {});
     } catch (err) {
       result = `Fehler: ${err.message}`;
